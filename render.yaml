@@ -1,0 +1,24 @@
+# Render blueprint for the SentinelGraph API.
+# Secrets are marked `sync: false` so Render prompts for them in the dashboard
+# and they are never stored in this repository.
+services:
+  - type: web
+    name: sentinelgraph-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: COGNODB_URI
+        sync: false
+      - key: COGNODB_USER
+        value: cognodb
+      - key: COGNODB_PASSWORD
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false # e.g. https://sentinelgraph.vercel.app
+      - key: MAX_CONNECTION_POOL_SIZE
+        value: '10'
+      - key: QUERY_TIMEOUT_SECONDS
+        value: '20'

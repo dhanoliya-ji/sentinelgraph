@@ -1,0 +1,19 @@
+# Local convenience: run the API in a container against your CognoDB Cloud
+# instance. Credentials come from backend/.env, which is gitignored.
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - '8000:8000'
+    env_file:
+      - backend/.env
+    environment:
+      CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request;urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
