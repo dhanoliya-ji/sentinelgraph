@@ -18,6 +18,20 @@ Shortest paths are expressed as a bounded match ordered by `length(path)` --
 same result, broader compatibility. Timestamps are stored twice on each
 transfer: `timestamp` (ISO-8601 string, for display) and `ts` (epoch seconds
 integer, for arithmetic).
+
+Variable-length patterns: measured against CognoDB, `[:REL*n]` returns results
+correctly up to three hops and then silently yields **zero rows** at four or
+more -- no error, just an empty result. Verified on this dataset, which
+contains a known four-hop cycle: `[:TRANSFERRED*4]` returns nothing while the
+equivalent four-hop explicit chain returns it. Because the failure is silent,
+it would have shipped as "no fraud rings found" rather than as an error.
+
+Every traversal that can exceed three hops is therefore written as a `UNION ALL`
+of explicit fixed-length chains, one branch per length. This is more verbose but
+it is correct on this engine, it keeps relationship-uniqueness semantics (an
+edge is not reused within a single path), and each branch is individually
+bounded -- which was the reason for the depth caps in the first place. Patterns
+that stay within three hops (`DETECT_FLAGGED_PROXIMITY`) still use `*1..2`.
 """
 
 # ---------------------------------------------------------------------------
@@ -300,12 +314,31 @@ LIMIT $limit
 # returning to its origin. This is the query a relational schema struggles
 # with: the join depth is data-dependent and unknown in advance.
 DETECT_RING_FOR_ACCOUNT = """
-MATCH path = (a:Account {acc_id: $acc_id})-[:TRANSFERRED*3..5]->(a)
-RETURN [n IN nodes(path) | n.acc_id] AS account_chain,
-       [r IN relationships(path) | r.amount] AS amounts,
-       [r IN relationships(path) | r.timestamp] AS timestamps,
-       [r IN relationships(path) | r.txn_id] AS txn_ids,
-       length(path) AS hops
+MATCH (a:Account {acc_id: $acc_id})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, a.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id] AS txn_ids,
+       3 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $acc_id})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(n3:Account)
+     -[r4:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, a.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount, r4.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id] AS txn_ids,
+       4 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $acc_id})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(n3:Account)
+     -[r4:TRANSFERRED]->(n4:Account)-[r5:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, n4.acc_id, a.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount, r4.amount, r5.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp, r5.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id, r5.txn_id] AS txn_ids,
+       5 AS hops
 ORDER BY hops ASC
 LIMIT $limit
 """
@@ -318,12 +351,40 @@ WHERE seed.status <> 'SAFE'
 WITH seed
 ORDER BY seed.risk_score DESC
 LIMIT $seed_limit
-MATCH path = (seed)-[:TRANSFERRED*3..5]->(seed)
-RETURN [n IN nodes(path) | n.acc_id] AS account_chain,
-       [r IN relationships(path) | r.amount] AS amounts,
-       [r IN relationships(path) | r.timestamp] AS timestamps,
-       [r IN relationships(path) | r.txn_id] AS txn_ids,
-       length(path) AS hops
+MATCH (seed)-[r1:TRANSFERRED]->(n1:Account)-[r2:TRANSFERRED]->(n2:Account)
+     -[r3:TRANSFERRED]->(seed)
+RETURN [seed.acc_id, n1.acc_id, n2.acc_id, seed.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id] AS txn_ids,
+       3 AS hops
+UNION ALL
+MATCH (seed:Account)
+WHERE seed.status <> 'SAFE'
+WITH seed
+ORDER BY seed.risk_score DESC
+LIMIT $seed_limit
+MATCH (seed)-[r1:TRANSFERRED]->(n1:Account)-[r2:TRANSFERRED]->(n2:Account)
+     -[r3:TRANSFERRED]->(n3:Account)-[r4:TRANSFERRED]->(seed)
+RETURN [seed.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, seed.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount, r4.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id] AS txn_ids,
+       4 AS hops
+UNION ALL
+MATCH (seed:Account)
+WHERE seed.status <> 'SAFE'
+WITH seed
+ORDER BY seed.risk_score DESC
+LIMIT $seed_limit
+MATCH (seed)-[r1:TRANSFERRED]->(n1:Account)-[r2:TRANSFERRED]->(n2:Account)
+     -[r3:TRANSFERRED]->(n3:Account)-[r4:TRANSFERRED]->(n4:Account)
+     -[r5:TRANSFERRED]->(seed)
+RETURN [seed.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, n4.acc_id, seed.acc_id] AS account_chain,
+       [r1.amount, r2.amount, r3.amount, r4.amount, r5.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp, r5.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id, r5.txn_id] AS txn_ids,
+       5 AS hops
 ORDER BY hops ASC
 LIMIT $limit
 """
@@ -394,17 +455,62 @@ RETURN flagged.acc_id AS flagged_account,
 LIMIT $limit
 """
 
-# Q4 -- money-flow path tracing. Bounded at 6 hops and ordered by length: the
-# portable equivalent of shortestPath(), without depending on it.
+# Q4 -- money-flow path tracing. Bounded at 5 hops and ordered by length: the
+# portable equivalent of shortestPath(), without depending on it. Written as a
+# UNION ALL of explicit chains -- see the module docstring on why variable-length
+# patterns cannot be used past three hops here.
 TRACE_PATH = """
-MATCH path = (a:Account {acc_id: $source})-[:TRANSFERRED*1..6]->(b:Account {acc_id: $destination})
-RETURN [n IN nodes(path) | n.acc_id] AS chain,
-       [n IN nodes(path) | n.owner_name] AS owners,
-       [n IN nodes(path) | n.status] AS statuses,
-       [r IN relationships(path) | r.amount] AS amounts,
-       [r IN relationships(path) | r.timestamp] AS timestamps,
-       [r IN relationships(path) | r.txn_id] AS txn_ids,
-       length(path) AS hops
+MATCH (a:Account {acc_id: $source})-[r1:TRANSFERRED]->(b:Account {acc_id: $destination})
+RETURN [a.acc_id, b.acc_id] AS chain,
+       [a.owner_name, b.owner_name] AS owners,
+       [a.status, b.status] AS statuses,
+       [r1.amount] AS amounts,
+       [r1.timestamp] AS timestamps,
+       [r1.txn_id] AS txn_ids,
+       1 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $source})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(b:Account {acc_id: $destination})
+RETURN [a.acc_id, n1.acc_id, b.acc_id] AS chain,
+       [a.owner_name, n1.owner_name, b.owner_name] AS owners,
+       [a.status, n1.status, b.status] AS statuses,
+       [r1.amount, r2.amount] AS amounts,
+       [r1.timestamp, r2.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id] AS txn_ids,
+       2 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $source})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(b:Account {acc_id: $destination})
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, b.acc_id] AS chain,
+       [a.owner_name, n1.owner_name, n2.owner_name, b.owner_name] AS owners,
+       [a.status, n1.status, n2.status, b.status] AS statuses,
+       [r1.amount, r2.amount, r3.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id] AS txn_ids,
+       3 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $source})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(n3:Account)
+     -[r4:TRANSFERRED]->(b:Account {acc_id: $destination})
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, b.acc_id] AS chain,
+       [a.owner_name, n1.owner_name, n2.owner_name, n3.owner_name, b.owner_name] AS owners,
+       [a.status, n1.status, n2.status, n3.status, b.status] AS statuses,
+       [r1.amount, r2.amount, r3.amount, r4.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id] AS txn_ids,
+       4 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $source})-[r1:TRANSFERRED]->(n1:Account)
+     -[r2:TRANSFERRED]->(n2:Account)-[r3:TRANSFERRED]->(n3:Account)
+     -[r4:TRANSFERRED]->(n4:Account)-[r5:TRANSFERRED]->(b:Account {acc_id: $destination})
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, n4.acc_id, b.acc_id] AS chain,
+       [a.owner_name, n1.owner_name, n2.owner_name, n3.owner_name, n4.owner_name,
+        b.owner_name] AS owners,
+       [a.status, n1.status, n2.status, n3.status, n4.status, b.status] AS statuses,
+       [r1.amount, r2.amount, r3.amount, r4.amount, r5.amount] AS amounts,
+       [r1.timestamp, r2.timestamp, r3.timestamp, r4.timestamp, r5.timestamp] AS timestamps,
+       [r1.txn_id, r2.txn_id, r3.txn_id, r4.txn_id, r5.txn_id] AS txn_ids,
+       5 AS hops
 ORDER BY hops ASC
 LIMIT $limit
 """
@@ -413,8 +519,20 @@ LIMIT $limit
 # Risk-score factors -- one query per factor, so the score stays explainable.
 # ---------------------------------------------------------------------------
 RISK_IN_CYCLE = """
-MATCH path = (a:Account {acc_id: $acc_id})-[:TRANSFERRED*3..5]->(a)
-RETURN [n IN nodes(path) | n.acc_id] AS chain, length(path) AS hops
+MATCH (a:Account {acc_id: $acc_id})-[:TRANSFERRED]->(n1:Account)
+     -[:TRANSFERRED]->(n2:Account)-[:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, a.acc_id] AS chain, 3 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $acc_id})-[:TRANSFERRED]->(n1:Account)
+     -[:TRANSFERRED]->(n2:Account)-[:TRANSFERRED]->(n3:Account)
+     -[:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, a.acc_id] AS chain, 4 AS hops
+UNION ALL
+MATCH (a:Account {acc_id: $acc_id})-[:TRANSFERRED]->(n1:Account)
+     -[:TRANSFERRED]->(n2:Account)-[:TRANSFERRED]->(n3:Account)
+     -[:TRANSFERRED]->(n4:Account)-[:TRANSFERRED]->(a)
+RETURN [a.acc_id, n1.acc_id, n2.acc_id, n3.acc_id, n4.acc_id, a.acc_id] AS chain, 5 AS hops
+ORDER BY hops ASC
 LIMIT 1
 """
 
