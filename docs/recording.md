@@ -21,8 +21,9 @@ Note the dense cluster on one side and the loose background traffic on the other
 **0:45 — Circular money flows (35s)**
 Run the detector. Read the headline aloud — it's written in English on purpose.
 Click `ACC_1101` to centre the graph on the ring.
-> "Four accounts, about fifty thousand dollars, and it comes back to where it
-> started. That's the query a relational database needs a recursive CTE for."
+> "Four accounts, roughly fifty thousand dollars a hop — a hundred and ninety-five
+> thousand cycled in total — and it comes back to where it started. That's the
+> query a relational database needs a recursive CTE for."
 
 **1:20 — Why flagged (40s)** ← *the part worth lingering on*
 With `ACC_1101` selected, open **Why flagged**. Walk down the evidence list.

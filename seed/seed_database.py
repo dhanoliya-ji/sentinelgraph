@@ -167,11 +167,14 @@ def build_dataset() -> dict:
     # --- Accounts ----------------------------------------------------------
     accounts = []
     for index, acc_id in enumerate(ALL_ACCOUNT_IDS):
+        # Denormalised onto the Account so the graph view can label a node
+        # without a join. It must name the same person the OWNS edge points at,
+        # so both come from the same customer -- see `owns` below.
+        owner = customers[index % len(customers)]
         accounts.append(
             {
                 "acc_id": acc_id,
-                "owner_name": f"{FIRST_NAMES[index % len(FIRST_NAMES)]} "
-                f"{LAST_NAMES[(index * 3) % len(LAST_NAMES)]}",
+                "owner_name": owner["name"],
                 "balance": round(RNG.uniform(500, 90_000), 2),
                 "country": "KY" if acc_id == OFFSHORE else RNG.choice(COUNTRIES),
                 "created_at": (BASE_DATE - timedelta(days=RNG.randint(30, 900)))
@@ -183,6 +186,7 @@ def build_dataset() -> dict:
             }
         )
 
+    # Same `i % len(customers)` mapping the owner_name above was taken from.
     owns = [
         {"cust_id": customers[i % len(customers)]["cust_id"], "acc_id": acc["acc_id"],
          "since": acc["created_at"]}

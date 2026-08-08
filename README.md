@@ -6,8 +6,10 @@ Fraud is rarely visible in a single row. One account receiving $4,000 is unremar
 
 None of these are properties of a record. They are properties of a **shape in the network** — and that is what SentinelGraph looks for.
 
-> 🔗 **Live demo:** _add your Vercel URL here_
+> 🔗 **Live demo:** <https://sentinelgraph.vercel.app> · **API:** <https://sentinelgraph-api.onrender.com/health>
 > 📺 **Screen recording:** _add your recording link here_ (see [`docs/recording.md`](docs/recording.md))
+>
+> _The API runs on Render's free tier and sleeps after inactivity — the first request can take up to a minute while it wakes. The UI shows a loading state rather than an error._
 
 ---
 
@@ -228,7 +230,7 @@ pip install -r backend/requirements.txt
 cp backend/.env.example backend/.env
 #    ...then paste your CognoDB URI and password into backend/.env
 
-# 3 — Load the demo dataset (~1,600 nodes and relationships)
+# 3 — Load the demo dataset (140 nodes, 306 relationships)
 python seed/seed_database.py
 
 # 4 — Start the API   → http://localhost:8000/docs
@@ -264,7 +266,7 @@ python seed/seed_database.py --reset     # wipe the graph, then reload it
    ```
    The script prints a clear, actionable message for each failure mode — wrong password, unreachable host, missing variable — rather than a driver stack trace.
 
-**Free-tier sizing.** The c0 instance is burstable 0.5 vCPU / 256 MB RAM / 1 GB disk / 200 connections. The demo dataset (~200 nodes, ~1,400 relationships) sits far inside that, and the application is written to respect it: the connection pool defaults to 15, every traversal is depth-bounded, and every query carries a `LIMIT`.
+**Free-tier sizing.** The c0 instance is burstable 0.5 vCPU / 256 MB RAM / 1 GB disk / 200 connections. The demo dataset (140 nodes, 306 relationships) sits far inside that, and the application is written to respect it: the connection pool defaults to 15, every traversal is depth-bounded, and every query carries a `LIMIT`.
 
 ---
 
