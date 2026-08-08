@@ -7,7 +7,7 @@ Fraud is rarely visible in a single row. One account receiving $4,000 is unremar
 None of these are properties of a record. They are properties of a **shape in the network** — and that is what SentinelGraph looks for.
 
 > 🔗 **Live demo:** <https://sentinelgraph.vercel.app> · **API:** <https://sentinelgraph-api.onrender.com/health>
-> 📺 **Screen recording:** _add your recording link here_ (see [`docs/recording.md`](docs/recording.md))
+> 🧭 **Guided walkthrough:** [`docs/walkthrough.md`](docs/walkthrough.md) — the four-minute tour of the app, in order, with what to look at and why it matters.
 >
 > _The API runs on Render's free tier and sleeps after inactivity — the first request can take up to a minute while it wakes. The UI shows a loading state rather than an error._
 
@@ -533,7 +533,7 @@ sentinelgraph/
 │       │   └── states.jsx           # loading · empty · error, shared
 │       └── App.jsx
 ├── seed/seed_database.py
-├── docs/recording.md
+├── docs/walkthrough.md
 ├── screenshots/
 ├── Dockerfile · docker-compose.yml · render.yaml
 └── .gitignore                   # .env is never tracked
@@ -561,7 +561,7 @@ sentinelgraph/
 
 ## Screenshots
 
-Place the images below in `screenshots/` and they will render here.
+Captured at 1920×1080 against the deployed app and the seeded dataset, so the numbers match the ones described above. For a click-by-click tour of what these show, see [`docs/walkthrough.md`](docs/walkthrough.md).
 
 | | |
 |---|---|
