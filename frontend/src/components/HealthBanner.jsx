@@ -17,8 +17,11 @@ const DOT = {
 export function HealthIndicator({ onChange }) {
   const state = useAsync((signal) => api.health(signal), [])
 
+  // Longer than the health request's own timeout (75s). `run()` aborts whatever
+  // is in flight, so a shorter interval would cancel a probe that is patiently
+  // waiting for a sleeping host to wake -- and the check would never resolve.
   useEffect(() => {
-    const timer = setInterval(() => state.run(), 30_000)
+    const timer = setInterval(() => state.run(), 90_000)
     return () => clearInterval(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

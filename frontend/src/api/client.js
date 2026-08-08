@@ -11,6 +11,12 @@ const BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000').
 
 const REQUEST_TIMEOUT_MS = 30_000
 
+// The health probe is also what wakes a sleeping host. Render's free tier spins
+// down after inactivity and can take 50 seconds or more to answer the first
+// request, so a 30s abort would report "offline" for a server that is merely
+// waking. Only /health waits that out -- a real query still fails fast.
+const HEALTH_TIMEOUT_MS = 75_000
+
 export class ApiError extends Error {
   constructor(message, { code = 'unknown', detail = null, status = 0 } = {}) {
     super(message)
@@ -26,9 +32,9 @@ export class ApiError extends Error {
   }
 }
 
-async function request(path, { method = 'GET', body, signal } = {}) {
+async function request(path, { method = 'GET', body, signal, timeout = REQUEST_TIMEOUT_MS } = {}) {
   const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  const timer = setTimeout(() => controller.abort(), timeout)
 
   // Let a caller-supplied signal (React cleanup) also abort this request.
   if (signal) signal.addEventListener('abort', () => controller.abort(), { once: true })
@@ -85,7 +91,7 @@ const qs = (params) => {
 }
 
 export const api = {
-  health: (signal) => request('/health', { signal }),
+  health: (signal) => request('/health', { signal, timeout: HEALTH_TIMEOUT_MS }),
   stats: (signal) => request('/stats', { signal }),
 
   graph: ({ focus, depth = 2, limit = 250 } = {}, signal) =>
